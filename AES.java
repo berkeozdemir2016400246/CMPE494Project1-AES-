@@ -254,4 +254,83 @@ public class AES {
             }
         }
     }
+    public int[][] keySchedule(String key)
+    {
+        // key size in binary, key is 32 hex-haracters -> binkeysize is 128-bit
+        int binkeysize = key.length() * 4;
+        
+        // number of blocks in round key matrix, 128 -> 11*16 blocks, 192 -> 13*16 blocks, 256 -> 15*16 blocks
+        int block_size = binkeysize*3/2 - 16;
+        
+        // number of columns in round key matrix, (128 -> 11*4), (192 -> 13*4), (256 -> 15*4)
+        int colsize = block_size / 4;
+        
+        
+        // round key matrix, 4x44, 4*52, 4*60
+        int[][] keyMatrix = new int[4][colsize]; 
+        
+        // pointer that points to the specific place on rcon matrix, changes in the schedule_core func
+        int rconpointer = 1;
+        
+        // t is a column of round key matrix
+        int[] t = new int[4];
+        
+        // keycounter is 4, at each round 4 columns are processed for 128 bit
+        final int keycounter = binkeysize / 32;
+        
+        // k is the row index
+        int k;
+        
+        // initial step, define the first 4*4 (for 128 bit) matrix
+        for (int i = 0; i < keycounter; i++) //the first 1 (128-bit key) or 2 (256-bit key) set(s) of 4x4 matrices are filled with the key.
+        {
+            for (int j = 0; j < 4; j++) {
+                keyMatrix[j][i] = Integer.parseInt(key.substring((8 * i) + (2 * j), (8 * i) + (2 * j + 2)), 16);
+            }
+        }
+        
+        // keypoint is the column index
+        int keypoint = keycounter;
+        
+        
+        while (keypoint < colsize) {
+            int temp = keypoint % keycounter;
+            if (temp == 0) {
+                for (k = 0; k < 4; k++) {
+                    t[k] = keyMatrix[k][keypoint - 1];
+                }
+                t = schedule_core(t, rconpointer++);
+                for (k = 0; k < 4; k++) {
+                    keyMatrix[k][keypoint] = t[k] ^ keyMatrix[k][keypoint - keycounter];
+                }
+                keypoint++;
+            } else if (temp == 4) {
+                for (k = 0; k < 4; k++) {
+                    int hex = keyMatrix[k][keypoint - 1];
+                    keyMatrix[k][keypoint] = sbox[hex / 16][hex % 16] ^ keyMatrix[k][keypoint - keycounter];
+                }
+                keypoint++;
+            } else {
+                int ktemp = keypoint + 3;
+                while (keypoint < ktemp) {
+                    for (k = 0; k < 4; k++) {
+                        keyMatrix[k][keypoint] = keyMatrix[k][keypoint - 1] ^ keyMatrix[k][keypoint - keycounter];
+                    }
+                    keypoint++;
+                }
+            }
+        }
+        return keyMatrix;
+    }
+    
+    public int[] schedule_core(int[] in, int rconpointer) {
+        in = leftrotate(in, 1);
+        int hex;
+        for (int i = 0; i < in.length; i++) {
+            hex = in[i];
+            in[i] = sbox[hex / 16][hex % 16];
+        }
+        in[0] ^= rcon[rconpointer];
+        return in;
+    }
 }
