@@ -91,7 +91,7 @@ public class AES {
 						System.out.print(MatrixToString(state) + "\n");
                         aes.shiftRows(state);
 						System.out.print(MatrixToString(state) + "\n");
-                        aes.mixColumns(state);
+                        aes.mixColumns(state, true);
 						System.out.print(MatrixToString(state) + "\n");
                         aes.addRoundKey(state, aes.subKey(keymatrix, i));
 						System.out.print(MatrixToString(state) + "\n");
@@ -150,7 +150,7 @@ public class AES {
 						System.out.print(MatrixToString(state) + "\n");
                         aes.addRoundKey(state, aes.subKey(keymatrix, i));
 						System.out.print(MatrixToString(state) + "\n");
-                        aes.invMixColumns(state);
+                        aes.mixColumns(state, false);
 						System.out.print(MatrixToString(state) + "\n");
                     }
                     aes.invShiftRows(state);
@@ -339,8 +339,7 @@ public class AES {
                                     {0x0c,0x02,0x10,0x1e,0x34,0x3a,0x28,0x26,0x7c,0x72,0x60,0x6e,0x44,0x4a,0x58,0x56},
                                     {0x37,0x39,0x2b,0x25,0x0f,0x01,0x13,0x1d,0x47,0x49,0x5b,0x55,0x7f,0x71,0x63,0x6d},
                                     {0xd7,0xd9,0xcb,0xc5,0xef,0xe1,0xf3,0xfd,0xa7,0xa9,0xbb,0xb5,0x9f,0x91,0x83,0x8d}};
-    
-    // simple left rotate over an array
+
 	private int[] leftrotate(int[] arr, int times)
     {
         assert(arr.length == 4);
@@ -358,7 +357,6 @@ public class AES {
         return arr;
     }
 	
-    // simple right rotate
 	private int[] rightrotate(int[] arr, int times) {
         if (arr.length == 0 || arr.length == 1 || times % 4 == 0) {
             return arr;
@@ -371,81 +369,68 @@ public class AES {
             arr[0] = temp;
             --times;
         }
-        return arr;
+        return arr;	
     }
 	
-    // function for column mix step
-	public void mixColumns(int[][] arr) {
-        int[][] tarr = new int[4][4];
-        for(int i = 0; i < 4; i++)
+	
+	public void mixColumns(int[][] state, boolean encrypt) 
+    {
+		int [][] tarr = new int [4][4];
+		for(int i = 0; i < 4; i++)
         {
-            System.arraycopy(arr[i], 0, tarr[i], 0, 4);
+            System.arraycopy(state[i], 0, tarr[i], 0, 4);
         }
+        int mcsum;
+        int x, y;
+        
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
-                arr[i][j] = mcHelper(tarr, galois, i, j);
+                mcsum = 0;
+                if(encrypt){
+                    for (int k = 0; k < 4; k++) {
+                        x = galois[i][k];
+                        y = tarr[k][j];
+                        mcsum ^= encMixedColumns(x, y);
+                    }
+                }else{
+                    for (int k = 0; k < 4; k++) {
+                        x = invgalois[i][k];
+                        y = tarr[k][j];
+                        mcsum ^= decMixedColumns(x, y);
+                    }
+                }
+                state[i][j] = mcsum;
             }
         }
     }
     
-	private int mcHelper(int[][] arr, int[][] g, int i, int j) {
-        int mcsum = 0;
-        for (int k = 0; k < 4; k++) {
-            int a = g[i][k];
-            int b = arr[k][j];
-            mcsum ^= mcCalc(a, b);
+    private int encMixedColumns(int x, int y) 
+    {
+        if (x == 1) {
+            return y;
+        } else if (x == 2) {
+            return mul_2[y / 16][y % 16];
+        } else if (x == 3) {
+            return mul_3[y / 16][y % 16];
         }
-        return mcsum;
+        return 0;
     }
     
-    private int mcCalc(int a, int b) {
-        if (a == 1) {
-            return b;
-        } else if (a == 2) {
-            return mul_2[b / 16][b % 16];
-        } else if (a == 3) {
-            return mul_3[b / 16][b % 16];
+    private int decMixedColumns(int x, int y) 
+    {
+        if (x == 9) {
+            return mul_9[y / 16][y % 16];
+        } else if (x == 11) {
+            return mul_11[y / 16][y % 16];
+        } else if (x == 13) {
+            return mul_13[y / 16][y % 16];
+        } else if (x == 14) {
+            return mul_14[y / 16][y % 16];
         }
         return 0;
     }
-
-    public void invMixColumns(int[][] arr) {
-        int[][] tarr = new int[4][4];
-        for(int i = 0; i < 4; i++)
-        {
-            System.arraycopy(arr[i], 0, tarr[i], 0, 4);
-        }
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                arr[i][j] = invMcHelper(tarr, invgalois, i, j);
-            }
-        }
-    }
-
-    private int invMcHelper(int[][] arr, int[][] igalois, int i, int j) {
-        int mcsum = 0;
-        for (int k = 0; k < 4; k++) {
-            int a = igalois[i][k];
-            int b = arr[k][j];
-            mcsum ^= invMcCalc(a, b);
-        }
-        return mcsum;
-    }
-
-    private int invMcCalc(int a, int b) {
-        if (a == 9) {
-            return mul_9[b / 16][b % 16];
-        } else if (a == 0xb) {
-            return mul_11[b / 16][b % 16];
-        } else if (a == 0xd) {
-            return mul_13[b / 16][b % 16];
-        } else if (a == 0xe) {
-            return mul_14[b / 16][b % 16];
-        }
-        return 0;
-    }
+    
 	
-    // xor 2 4x4 matrices
     public void addRoundKey(int[][] bytematrix, int[][] keymatrix)
     {
         for (int i = 0; i < bytematrix.length; i++) {
@@ -454,8 +439,6 @@ public class AES {
             }
         }
     }
-    
-    // create a round key matrix using 32 hexadecimal characters of key string
     public int[][] keySchedule(String key)
     {
         // key size in binary, key is 32 hex-characters -> binkeysize is 128-bit
@@ -468,7 +451,7 @@ public class AES {
         int colsize = block_size / 4;
         
         
-        // round key matrix, 4x44, 4x52, 4x60
+        // round key matrix, 4x44, 4*52, 4*60
         int[][] keyMatrix = new int[4][colsize]; 
         
         // pointer that points to the specific place on rcon matrix, changes in the schedule_core func
@@ -494,7 +477,7 @@ public class AES {
         // keypoint is the column index
         int keypoint = keycounter;
         
-        // create each column 
+        
         while (keypoint < colsize) {
             int temp = keypoint % keycounter;
             if (temp == 0) {
@@ -525,7 +508,6 @@ public class AES {
         return keyMatrix;
     }
     
-    // using rcon matrix, round key matrix is generated (xor step)
     public int[] schedule_core(int[] in, int rconpointer) {
         in = leftrotate(in, 1);
         int hex;
