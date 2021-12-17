@@ -238,6 +238,10 @@ public class AES {
         }
     }
     
+	// these tables are used on column mix step 
+	//
+	// on wikipedia https://en.wikipedia.org/wiki/Rijndael_MixColumns#Galois_Multiplication_lookup_tables :
+	// "Commonly, rather than implementing Galois multiplication, Rijndael implementations simply use pre-calculated lookup tables to perform the byte multiplication by 2, 3, 9, 11, 13, and 14."
     public static int[][] mul_2 ={{0x00, 0x02, 0x04, 0x06, 0x08, 0x0a, 0x0c, 0x0e, 0x10, 0x12, 0x14, 0x16, 0x18, 0x1a, 0x1c, 0x1e},
                                             {0x20, 0x22, 0x24, 0x26, 0x28, 0x2a, 0x2c, 0x2e, 0x30, 0x32, 0x34, 0x36, 0x38, 0x3a, 0x3c, 0x3e},
                                             {0x40, 0x42, 0x44, 0x46, 0x48, 0x4a, 0x4c, 0x4e, 0x50, 0x52, 0x54, 0x56, 0x58, 0x5a, 0x5c, 0x5e},
@@ -339,7 +343,8 @@ public class AES {
                                     {0x0c,0x02,0x10,0x1e,0x34,0x3a,0x28,0x26,0x7c,0x72,0x60,0x6e,0x44,0x4a,0x58,0x56},
                                     {0x37,0x39,0x2b,0x25,0x0f,0x01,0x13,0x1d,0x47,0x49,0x5b,0x55,0x7f,0x71,0x63,0x6d},
                                     {0xd7,0xd9,0xcb,0xc5,0xef,0xe1,0xf3,0xfd,0xa7,0xa9,0xbb,0xb5,0x9f,0x91,0x83,0x8d}};
-
+    
+    // simple left rotate over an array
 	private int[] leftrotate(int[] arr, int times)
     {
         assert(arr.length == 4);
@@ -357,6 +362,7 @@ public class AES {
         return arr;
     }
 	
+    // simple right rotate
 	private int[] rightrotate(int[] arr, int times) {
         if (arr.length == 0 || arr.length == 1 || times % 4 == 0) {
             return arr;
@@ -369,10 +375,10 @@ public class AES {
             arr[0] = temp;
             --times;
         }
-        return arr;	
+        return arr;
     }
 	
-	
+    // function for column mix step
 	public void mixColumns(int[][] state, boolean encrypt) 
     {
 		int [][] tarr = new int [4][4];
@@ -404,6 +410,7 @@ public class AES {
         }
     }
     
+	// helper function for mix column function on encrypt
     private int encMixedColumns(int x, int y) 
     {
         if (x == 1) {
@@ -416,6 +423,7 @@ public class AES {
         return 0;
     }
     
+	// helper function for mix column function on decrypt
     private int decMixedColumns(int x, int y) 
     {
         if (x == 9) {
@@ -429,8 +437,8 @@ public class AES {
         }
         return 0;
     }
-    
 	
+    // xor 2 4x4 matrices
     public void addRoundKey(int[][] bytematrix, int[][] keymatrix)
     {
         for (int i = 0; i < bytematrix.length; i++) {
@@ -439,6 +447,8 @@ public class AES {
             }
         }
     }
+    
+    // create a round key matrix using 32 hexadecimal characters of key string
     public int[][] keySchedule(String key)
     {
         // key size in binary, key is 32 hex-characters -> binkeysize is 128-bit
@@ -451,7 +461,7 @@ public class AES {
         int colsize = block_size / 4;
         
         
-        // round key matrix, 4x44, 4*52, 4*60
+        // round key matrix, 4x44, 4x52, 4x60
         int[][] keyMatrix = new int[4][colsize]; 
         
         // pointer that points to the specific place on rcon matrix, changes in the schedule_core func
@@ -477,7 +487,7 @@ public class AES {
         // keypoint is the column index
         int keypoint = keycounter;
         
-        
+        // create each column 
         while (keypoint < colsize) {
             int temp = keypoint % keycounter;
             if (temp == 0) {
@@ -508,6 +518,7 @@ public class AES {
         return keyMatrix;
     }
     
+    // using rcon matrix, round key matrix is generated (xor step)
     public int[] schedule_core(int[] in, int rconpointer) {
         in = leftrotate(in, 1);
         int hex;
